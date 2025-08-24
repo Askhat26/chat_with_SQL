@@ -1,0 +1,9 @@
+version: "3.9"
+services:
+  text2sql:
+    build: .
+    container_name: text2sql_app
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./uploaded_dbs:/app/uploaded_dbs
