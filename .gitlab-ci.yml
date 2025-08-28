@@ -1,0 +1,25 @@
+stages:
+  - build
+  - test
+
+# Step 1: Build (install dependencies)
+build-job:
+  stage: build
+  image: python:3.10   # Use official Python image
+  before_script:
+    - pip install --upgrade pip
+  script:
+    - echo "Installing dependencies..."
+    - pip install -r requirements.txt
+
+# Step 2: Test (basic sanity check)
+test-job:
+  stage: test
+  image: python:3.10
+  before_script:
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - echo "Running basic checks..."
+    - python -m py_compile app.py   # Syntax check for Flask app
+    - python -c "import flask; print('Flask is installed')"
