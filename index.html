@@ -1,274 +1,219 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Text-to-SQL Tool</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 30px; }
-    input, button, textarea, select { margin: 10px 0; padding: 8px; }
-    table { border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; }
-    th { background: #f4f4f4; }
-    #chart-container { margin: 20px 0; text-align: center; }
-    #chart-container img { max-width: 100%; height: auto; border: 1px solid #ddd; }
-    .hidden { display: none; }
-    .button-row { margin: 15px 0; }
-    .button-row button { background: #4CAF50; color: white; border: none; padding: 10px 15px; cursor: pointer; margin-right: 10px; }
-    .button-row button:hover { background: #45a049; }
-    .button-row button:disabled { background: #cccccc; cursor: not-allowed; }
-    .button-row button.visualize { background: #2196F3; }
-    .button-row button.visualize:hover { background: #0b7dda; }
-    .visualization-controls { background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0; }
-    .visualization-controls h4 { margin-top: 0; }
-    .db-info { background: #e8f5e8; padding: 10px; border-radius: 5px; margin: 10px 0; }
-    .success-message { color: #2ecc71; font-weight: bold; }
-    .error-message { color: #e74c3c; font-weight: bold; }
-  </style>
-</head>
-<body>
-  <h1>Universal Text-to-SQL with Visualization</h1>
+<script>
+  // Global variables
+  let currentData = { columns: [], rows: [] };
+  let currentSQL = "";
+  let currentDBFilename = ""; // ✨ Store the uploaded DB's unique filename
 
-  <h3>1. Upload SQLite Database</h3>
-  <input type="file" id="dbfile" accept=".db">
-  <button onclick="uploadDB()">Upload</button>
-  <p id="uploadStatus"></p>
+  // Upload SQLite database
+  async function uploadDB() {
+    const fileInput = document.getElementById("dbfile");
+    const uploadStatus = document.getElementById("uploadStatus");
 
-  <h3>2. Ask a Question</h3>
-  <textarea id="query" rows="3" cols="60" placeholder="e.g., Show all products with price > 100"></textarea><br>
-  <button onclick="sendQuery()">Run Query</button>
-
-  <h3>Generated SQL</h3>
-  <pre id="sqlOutput"></pre>
-
-  <div class="button-row">
-    <button id="exportBtn" onclick="exportToCSV()" disabled>Export to CSV</button>
-    <button id="visualizeBtn" class="visualize" onclick="showVisualizationControls()" disabled>Visualize Data</button>
-  </div>
-
-  <div id="visualizationControls" class="visualization-controls hidden">
-    <h4>Create Visualization</h4>
-    <label>Chart Type:</label>
-    <select id="chartType">
-      <option value="bar">Bar Chart</option>
-      <option value="line">Line Chart</option>
-      <option value="pie">Pie Chart</option>
-      <option value="scatter">Scatter Plot</option>
-    </select>
-    
-    <label>X-Axis Column:</label>
-    <select id="xColumn"></select>
-    
-    <label>Y-Axis Column:</label>
-    <select id="yColumn"></select>
-    
-    <button onclick="generateVisualization()">Generate Chart</button>
-  </div>
-
-  <div id="chart-container" class="hidden"></div>
-
-  <h3>Results</h3>
-  <table id="resultsTable"></table>
-
-  <script>
-    // Store current data for export and visualization
-    let currentData = { columns: [], rows: [] };
-    let currentSQL = "";
-
-    async function uploadDB() {
-      const fileInput = document.getElementById("dbfile");
-      const uploadStatus = document.getElementById("uploadStatus");
-      
-      if (!fileInput.files.length) {
-        uploadStatus.innerHTML = '<span class="error-message">Please select a .db file</span>';
-        return;
-      }
-      
-      const formData = new FormData();
-      formData.append("dbfile", fileInput.files[0]);
-      
-      try {
-        uploadStatus.innerHTML = '<span>Uploading database...</span>';
-        
-        const res = await fetch("/upload_db", { method: "POST", body: formData });
-        const data = await res.json();
-        
-        if (res.ok) {
-          // Show simple success message only
-          uploadStatus.innerHTML = '<span class="success-message">✓ Database uploaded successfully!</span>';
-          
-          // Enable query button if upload successful
-          document.getElementById("exportBtn").disabled = true;
-          document.getElementById("visualizeBtn").disabled = true;
-          
-          // Clear previous results
-          document.getElementById("sqlOutput").innerText = "";
-          document.getElementById("resultsTable").innerHTML = "";
-          document.getElementById("chart-container").classList.add("hidden");
-          document.getElementById("visualizationControls").classList.add("hidden");
-          
-        } else {
-          uploadStatus.innerHTML = `<span class="error-message">Error: ${data.error || "Unknown error"}</span>`;
-        }
-      } catch (error) {
-        uploadStatus.innerHTML = `<span class="error-message">Error: ${error.message}</span>`;
-      }
+    if (!fileInput.files.length) {
+      uploadStatus.innerHTML = '<span class="error-message">Please select a .db file</span>';
+      return;
     }
 
-    async function sendQuery() {
-      const query = document.getElementById("query").value;
-      if (!query) {
-        alert("Please enter a query");
-        return;
-      }
-      
-      try {
-        const res = await fetch("/query", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query })
-        });
+    const formData = new FormData();
+    formData.append("dbfile", fileInput.files[0]);
+
+    try {
+      uploadStatus.innerHTML = '<span>Uploading database...</span>';
+
+      const res = await fetch("/upload_db", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (res.ok) {
+        uploadStatus.innerHTML = '<span class="success-message">✓ Database uploaded successfully and indexed in Chroma!</span>';
         
-        const data = await res.json();
-        
-        if (!res.ok) {
-          document.getElementById("sqlOutput").innerText = "Error: " + (data.error || "Unknown error");
-          return;
-        }
-        
-        // Display SQL
-        currentSQL = data.sql;
-        document.getElementById("sqlOutput").innerText = data.sql || "No SQL generated";
-        
-        // Store current data for export and visualization
-        currentData = { columns: data.columns, rows: data.rows };
-        
-        // Enable export and visualize buttons if we have data
-        const hasData = data.columns && data.rows.length;
-        document.getElementById("exportBtn").disabled = !hasData;
-        document.getElementById("visualizeBtn").disabled = !hasData;
-        
-        // Populate column dropdowns for visualization
-        if (hasData) {
-          const xColumn = document.getElementById("xColumn");
-          const yColumn = document.getElementById("yColumn");
-          xColumn.innerHTML = "";
-          yColumn.innerHTML = "";
-          
-          data.columns.forEach(column => {
-            xColumn.innerHTML += `<option value="${column}">${column}</option>`;
-            yColumn.innerHTML += `<option value="${column}">${column}</option>`;
-          });
-        }
-        
-        // Hide any existing chart
+        currentDBFilename = data.db_filename; // Store unique DB filename
+
+        // Reset UI
+        document.getElementById("sqlOutput").innerText = "";
+        document.getElementById("resultsTable").innerHTML = "";
         document.getElementById("chart-container").classList.add("hidden");
         document.getElementById("visualizationControls").classList.add("hidden");
-        
-        // Build results table
-        const table = document.getElementById("resultsTable");
-        table.innerHTML = "";
-        
-        if (data.columns && data.rows) {
-          const headerRow = document.createElement("tr");
-          data.columns.forEach(col => {
-            const th = document.createElement("th");
-            th.innerText = col;
-            headerRow.appendChild(th);
-          });
-          table.appendChild(headerRow);
 
-          data.rows.forEach(row => {
-            const tr = document.createElement("tr");
-            row.forEach(cell => {
-              const td = document.createElement("td");
-              td.innerText = cell !== null ? cell : "NULL";
-              tr.appendChild(td);
-            });
-            table.appendChild(tr);
-          });
-        }
-      } catch (error) {
-        document.getElementById("sqlOutput").innerText = "Error: " + error.message;
+        document.getElementById("exportBtn").disabled = true;
+        document.getElementById("visualizeBtn").disabled = true;
+
+      } else {
+        uploadStatus.innerHTML = `<span class="error-message">Error: ${data.error || "Unknown error"}</span>`;
       }
+
+    } catch (error) {
+      uploadStatus.innerHTML = `<span class="error-message">Error: ${error.message}</span>`;
+    }
+  }
+
+  // Send natural language query to backend
+  async function sendQuery() {
+    const query = document.getElementById("query").value;
+
+    if (!currentDBFilename) {
+      alert("Please upload a database first.");
+      return;
+    }
+    if (!query) {
+      alert("Please enter a query");
+      return;
     }
 
-    function showVisualizationControls() {
-      document.getElementById("visualizationControls").classList.remove("hidden");
-    }
+    try {
+      const res = await fetch("/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          query: query, 
+          db_filename: currentDBFilename // ✨ Include db_filename
+        })
+      });
 
-    async function generateVisualization() {
-      const chartType = document.getElementById("chartType").value;
-      const xColumn = document.getElementById("xColumn").value;
-      const yColumn = document.getElementById("yColumn").value;
-      
-      if (!xColumn || !yColumn) {
-        alert("Please select both X and Y columns");
+      const data = await res.json();
+
+      if (!res.ok) {
+        document.getElementById("sqlOutput").innerText = "Error: " + (data.error || "Unknown error");
         return;
       }
-      
-      try {
-        const res = await fetch("/visualize", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sql: currentSQL,
-            chart_type: chartType,
-            x_column: xColumn,
-            y_column: yColumn
-          })
+
+      // Store SQL and results
+      currentSQL = data.sql;
+      currentData = { columns: data.columns, rows: data.rows };
+
+      document.getElementById("sqlOutput").innerText = currentSQL || "No SQL generated";
+
+      // Enable export & visualize buttons if data exists
+      const hasData = data.columns && data.rows.length;
+      document.getElementById("exportBtn").disabled = !hasData;
+      document.getElementById("visualizeBtn").disabled = !hasData;
+
+      // Populate column dropdowns
+      if (hasData) {
+        const xColumn = document.getElementById("xColumn");
+        const yColumn = document.getElementById("yColumn");
+        xColumn.innerHTML = "";
+        yColumn.innerHTML = "";
+        data.columns.forEach(col => {
+          xColumn.innerHTML += `<option value="${col}">${col}</option>`;
+          yColumn.innerHTML += `<option value="${col}">${col}</option>`;
         });
-        
-        const data = await res.json();
-        
-        if (!res.ok) {
-          alert("Visualization error: " + (data.error || "Unknown error"));
-          return;
-        }
-        
-        // Display the chart
-        const chartContainer = document.getElementById("chart-container");
-        chartContainer.innerHTML = `<img src="${data.chart_image}" alt="Data Visualization">`;
-        chartContainer.classList.remove("hidden");
-        
-      } catch (error) {
-        alert("Visualization error: " + error.message);
       }
+
+      // Hide charts
+      document.getElementById("chart-container").classList.add("hidden");
+      document.getElementById("visualizationControls").classList.add("hidden");
+
+      // Render table
+      populateResultsTableAndControls(data);
+
+    } catch (error) {
+      document.getElementById("sqlOutput").innerText = "Error: " + error.message;
+    }
+  }
+
+  // Render table
+  function populateResultsTableAndControls(data) {
+    const table = document.getElementById("resultsTable");
+    table.innerHTML = "";
+
+    if (data.columns && data.rows) {
+      const headerRow = document.createElement("tr");
+      data.columns.forEach(col => {
+        const th = document.createElement("th");
+        th.innerText = col;
+        headerRow.appendChild(th);
+      });
+      table.appendChild(headerRow);
+
+      data.rows.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach(cell => {
+          const td = document.createElement("td");
+          td.innerText = cell !== null ? cell : "NULL";
+          tr.appendChild(td);
+        });
+        table.appendChild(tr);
+      });
+    }
+  }
+
+  // Show visualization controls
+  function showVisualizationControls() {
+    document.getElementById("visualizationControls").classList.remove("hidden");
+  }
+
+  // Generate visualization
+  async function generateVisualization() {
+    const chartType = document.getElementById("chartType").value;
+    const xColumn = document.getElementById("xColumn").value;
+    const yColumn = document.getElementById("yColumn").value;
+
+    if (!xColumn || !yColumn) {
+      alert("Please select both X and Y columns");
+      return;
     }
 
-    async function exportToCSV() {
-      if (!currentData.columns.length || !currentData.rows.length) {
-        alert("No data to export");
+    try {
+      const res = await fetch("/visualize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sql: currentSQL,
+          chart_type: chartType,
+          x_column: xColumn,
+          y_column: yColumn
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert("Visualization error: " + (data.error || "Unknown error"));
         return;
       }
-      
-      try {
-        const res = await fetch("/export_csv", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(currentData)
-        });
-        
-        if (!res.ok) {
-          const errorData = await res.json();
-          alert("Export failed: " + (errorData.error || "Unknown error"));
-          return;
-        }
-        
-        // Create download link
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.style.display = "none";
-        a.href = url;
-        a.download = "query_results.csv";
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } catch (error) {
-        alert("Export error: " + error.message);
-      }
+
+      const chartContainer = document.getElementById("chart-container");
+      chartContainer.innerHTML = `<img src="${data.chart_image}" alt="Data Visualization">`;
+      chartContainer.classList.remove("hidden");
+
+    } catch (error) {
+      alert("Visualization error: " + error.message);
     }
-  </script>
-</body>
-</html>
+  }
+
+  // Export results to CSV
+  async function exportToCSV() {
+    if (!currentData.columns.length || !currentData.rows.length) {
+      alert("No data to export");
+      return;
+    }
+
+    try {
+      const res = await fetch("/export_csv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(currentData)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert("Export failed: " + (errorData.error || "Unknown error"));
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = "query_results.csv";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+    } catch (error) {
+      alert("Export error: " + error.message);
+    }
+  }
+</script>

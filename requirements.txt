@@ -1,8 +1,18 @@
 
-langchain-groq==0.1.2
-langchain-core==0.1.45
-python-dotenv==1.0.1
+Flask
+Flask-Cors
+Werkzeug
+
+
 pandas
-flask
-flask-cors
-sqlalchemy
+numpy
+
+matplotlib
+
+groq
+
+chromadb
+sentence-transformers
+torch  # Required by sentence-transformers
+
+python-dotenv
